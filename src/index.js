@@ -14,6 +14,22 @@ process.setMaxListeners(0);
 
 module.exports = async function displayAdsRecorder(options, chunkSize = 10) {
   const { targetDir, adSelection } = options;
+  const allStartTime = new Date().getTime();
+  console.log(chunkSize);
+
+  Date.prototype.timeNow = function () {
+    return (
+      (this.getHours() < 10 ? "0" : "") +
+      this.getHours() +
+      ":" +
+      (this.getMinutes() < 10 ? "0" : "") +
+      this.getMinutes() +
+      ":" +
+      (this.getSeconds() < 10 ? "0" : "") +
+      this.getSeconds()
+    );
+  };
+  console.log(new Date().timeNow());
 
   app.use(express.static(targetDir));
 
@@ -28,7 +44,7 @@ module.exports = async function displayAdsRecorder(options, chunkSize = 10) {
     adSelection.output.includes("gif")
   ) {
     for (const adLocation of adSelection.location) {
-      await recordVideoGif(adLocation)
+      await recordVideoGif(adLocation);
     }
   }
 
@@ -36,10 +52,13 @@ module.exports = async function displayAdsRecorder(options, chunkSize = 10) {
   // if backup img is selected, convert last image from sequence and place in targetDir
   if (adSelection.output.includes("jpg")) {
     const startTime = new Date().getTime();
-    const progressBar = new cliProgress.SingleBar({
-      format:
-        "making backup images     [{bar}] {percentage}% | ETA: {eta}s | {value}/{total}",
-    }, cliProgress.Presets.shades_classic);
+    const progressBar = new cliProgress.SingleBar(
+      {
+        format:
+          "making backup images     [{bar}] {percentage}% | ETA: {eta}s | {value}/{total}",
+      },
+      cliProgress.Presets.shades_classic
+    );
     progressBar.start(adSelection.location.length, 0);
 
     const resultChunks = splitArrayIntoChunks(adSelection.location, chunkSize);
@@ -48,11 +67,11 @@ module.exports = async function displayAdsRecorder(options, chunkSize = 10) {
       await Promise.all(resultChunk.map(recordBackup));
       progressBar.update(index * chunkSize + resultChunk.length);
     }
-    
+
     progressBar.stop();
     console.log(`recorded in ${new Date().getTime() - startTime}ms`);
   }
-  
+
   async function recordVideoGif(adLocation) {
     const [url, htmlBaseDirName] = urlFromAdLocation(adLocation);
 
@@ -90,9 +109,10 @@ module.exports = async function displayAdsRecorder(options, chunkSize = 10) {
       maxSizeBytes: adSelection.jpgMaxFileSize * 1024,
     });
   }
-
+  console.log(`Total recorded in ${new Date().getTime() - allStartTime}ms`);
+  console.log(new Date().timeNow());
   server.close();
-}
+};
 
 function urlFromAdLocation(adLocation) {
   const htmlBaseDirName = path.basename(path.dirname(adLocation)); // ./build/banner_300x250/index.html > banner_300x250

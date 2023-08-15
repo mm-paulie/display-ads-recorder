@@ -2,7 +2,7 @@
 
 const displayAdsRecorder = require("../src/index");
 // const jsonParseDeep = require('./src/util/jsonParseDeep');
-const program = require("commander");
+const { program, Option } = require("commander");
 const chalk = require("chalk");
 const packageJson = require("../package.json");
 const inquirer = require("inquirer");
@@ -13,12 +13,26 @@ const findAdsInDirectory = require("../src/util/findAdsInDirectory");
   program
     .version(packageJson.version)
     // .option('-g, --glob <data>', 'Globbing pattern like "-p ./src/**/.richmediarc"')
-    .option('-c, --chunkSize <data>', 'Define chunkSize', 10)
-    .option('-t, --targetDir <data>', 'Set target dir')
-    .option('-b, --backup <data>', 'If you want to run backup images only', 0)
-    .option('-a, --all', 'If you want to record all', false)
+    .option("-c, --chunkSize <data>", "Define chunkSize", 10)
+    .option("-t, --targetDir <data>", "Set target dir")
+    .option(
+      "-j, --jpg [optional]",
+      "If you want to output jpg and optional kbs"
+    )
+    .addOption(
+      new Option(
+        "-g, --gif <animation>",
+        "If you want to output animated gifs"
+      ).choices([-1, 0]),
+      "loop"
+    )
+    .option("-m, --mp4", "If you want to output video", false)
+    .option("-g, --fps <data>", "fps for gif and/or mp4", 15)
+    .option("-a, --all", "If you want to record all", false)
     .parse(process.argv);
   const options = program.opts();
+
+  console.log(options);
 
   console.log(
     `Welcome to the ${chalk.green.bold(`Display.Monks Record Tool`)} v${
@@ -35,13 +49,13 @@ const findAdsInDirectory = require("../src/util/findAdsInDirectory");
   );
 
   const { targetDir } = options.targetDir
-  ? options
-  : await inquirer.prompt({
-    type: "input",
-    name: "targetDir",
-    message: "Target Dir?",
-    default: './build',
-  });
+    ? options
+    : await inquirer.prompt({
+        type: "input",
+        name: "targetDir",
+        message: "Target Dir?",
+        default: "./build",
+      });
 
   const allAds = await findAdsInDirectory(targetDir);
 
@@ -50,36 +64,43 @@ const findAdsInDirectory = require("../src/util/findAdsInDirectory");
   const configQuestions = [];
 
   const { location } = options.all
-  ? { location: allAds }
-  : await inquirer.prompt({
-    type: "checkbox",
-    name: "location",
-    message: "Please select ad(s) to record:",
-    validate: (answers) => answers.length > 0,
-    choices: [
-      { name: "all", checked: false },
-      ...allAds.map((value) => {
-        return {
-          value,
-          checked: false,
-        };
-      }),
-    ],
-  });
+    ? { location: allAds }
+    : await inquirer.prompt({
+        type: "checkbox",
+        name: "location",
+        message: "Please select ad(s) to record:",
+        validate: (answers) => answers.length > 0,
+        choices: [
+          { name: "all", checked: false },
+          ...allAds.map((value) => {
+            return {
+              value,
+              checked: false,
+            };
+          }),
+        ],
+      });
 
-  const { output } = options.backup
-  ? { output: ["jpg"] }
-  : await inquirer.prompt({
-    type: "checkbox",
-    name: "output",
-    message: "Please select output(s)",
-    validate: (answers) => answers.length > 0,
-    choices: [
-      { name: "mp4", value: "mp4", checked: false },
-      { name: "gif (animated)", value: "gif", checked: false },
-      { name: "jpg (last frame)", value: "jpg", checked: false },
-    ],
-  });
+  const allOutputs = { jpg: options.jpg, gif: options.gif, mp4: options.mp4 };
+  console.log(options.jpg);
+  const { output } =
+    options.jpg || options.mp4 || options.gif
+      ? {
+          output: Object.entries(allOutputs)
+            .filter(([key, value]) => value)
+            .map(([key]) => key),
+        }
+      : await inquirer.prompt({
+          type: "checkbox",
+          name: "output",
+          message: "Please select output(s)",
+          validate: (answers) => answers.length > 0,
+          choices: [
+            { name: "mp4", value: "mp4", checked: false },
+            { name: "gif (animated)", value: "gif", checked: false },
+            { name: "jpg (last frame)", value: "jpg", checked: false },
+          ],
+        });
 
   configQuestions.push({
     type: "list",
@@ -103,30 +124,35 @@ const findAdsInDirectory = require("../src/util/findAdsInDirectory");
     default: 1,
   });
 
-  const { jpgMaxFileSize } = options.backup
-  ? { jpgMaxFileSize: options.backup }
-  : await inquirer.prompt({
-    type: "input",
-    name: "jpgMaxFileSize",
-    when: output.includes("jpg"),
-    message: "Please select max KB filesize for backup image",
-    default: 40,
-  });
+  console.log("jpgQuality", options.jpgQuality);
+
+  const { jpgMaxFileSize } = options.jpgQuality
+    ? { jpgMaxFileSize: options.jpgQuality }
+    : await inquirer.prompt({
+        type: "input",
+        name: "jpgMaxFileSize",
+        when: output.includes("jpg"),
+        message: "Please select max KB filesize for backup image",
+        default: 40,
+      });
 
   const adSelection = await inquirer.prompt(configQuestions);
 
   adSelection.location = options.all
-  ? location
-  : (location.indexOf("all") > -1)
+    ? location
+    : location.indexOf("all") > -1
     ? allAds
     : location;
 
-  adSelection.output = output
-  adSelection.jpgMaxFileSize = jpgMaxFileSize
+  console.log("output", output);
+  adSelection.output = output;
+  adSelection.jpgMaxFileSize = jpgMaxFileSize;
 
-  await displayAdsRecorder({
-    targetDir,
-    adSelection,
-  }, options.chunkSize);
-
+  await displayAdsRecorder(
+    {
+      targetDir,
+      adSelection,
+    },
+    options.chunkSize
+  );
 })();
